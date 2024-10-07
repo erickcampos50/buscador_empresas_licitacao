@@ -145,7 +145,8 @@
 
             // Load data from Google Sheets using a proxy to avoid CORS issues
             const sheetId = '1BaVTq3_Cb0Qih5K-FyqNQqmfuarVfq-Jj86hvYnvO2Q';
-            const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=25459907`;
+            // const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=25459907`;
+            const sheetUrl = `base_dados.csv`;
             const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
 
             $.ajax({
