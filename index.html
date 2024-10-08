@@ -214,7 +214,7 @@
                 const uf = $('#uf').val();
                 const municipio = $('#municipio').val();
                 
-                let apiUrl = 'http://compras.dados.gov.br/fornecedores/v1/fornecedores.csv?';
+                let apiUrl = 'https://compras.dados.gov.br/fornecedores/v1/fornecedores.csv?';
                 
                 if (linhaFornecimento) apiUrl += `id_linha_fornecimento=${linhaFornecimento}&`;
                 if (uf) apiUrl += `uf=${uf}&`;
