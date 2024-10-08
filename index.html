@@ -45,6 +45,11 @@
             font-style: italic;
             margin-top: 10px;
         }
+        /* Estilo para o alerta de instabilidade */
+        #apiAlert {
+            display: none;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -107,12 +112,17 @@
             </div>
             <div class="d-flex">
                 <button type="submit" class="btn btn-primary me-2">Buscar</button>
+                <button type="button" id="limparBtn" class="btn btn-secondary me-2">Limpar Seleções</button> <!-- Novo botão de limpar -->
                 <button type="button" id="downloadBtn" class="btn btn-success btn-lg" disabled>Download CSV Completo</button>
             </div>
         </form>
         <div id="loading" class="mt-3">
             <img src="https://i.gifer.com/ZKZg.gif" alt="Carregando..." width="50" height="50">
             <div id="requestTime"></div>
+            <!-- Alerta de instabilidade da API -->
+            <div id="apiAlert" class="alert alert-warning" role="alert" style="opacity: 0.9;">
+                <strong>Atenção!</strong> A API do governo está instável. Se os resultados não aparecerem em alguns segundos, recomendamos tentar novamente mais tarde.
+            </div>
         </div>
         <div id="apiLink" class="mt-4"></div>
         <div id="results" class="mt-4"></div>
@@ -122,9 +132,6 @@
         </div>
     </main>
     
-    <footer class="container mt-5">
-        <p>&copy; 2024 - Todos os direitos reservados.</p>
-    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -205,6 +212,7 @@
 
             let requestTimer;
             let startTime;
+            let alertaMostrado = false; // Flag para evitar múltiplos alertas
 
             $('#searchForm').submit(function(e) {
                 e.preventDefault();
@@ -219,25 +227,27 @@
                 if (uf) apiUrl += `uf=${uf}&`;
                 if (municipio) apiUrl += `id_municipio=${municipio}&`;
                 
-                // Remove trailing '&' if present
+                // Remove trailing '&' se presente
                 apiUrl = apiUrl.endsWith('&') ? apiUrl.slice(0, -1) : apiUrl;
                 
                 $('#apiLink').html(`<strong>Link da consulta:</strong> <a href="${apiUrl}" target="_blank">${apiUrl}</a>`);
                 
-                // Show loading gif and start timer
+                // Mostrar loading gif e iniciar timer
                 $('#loading').show();
+                $('#apiAlert').hide(); // Esconder alerta caso esteja visível de uma consulta anterior
+                alertaMostrado = false; // Resetar flag do alerta
                 startTime = new Date();
                 requestTimer = setInterval(updateRequestTime, 100);
                 
                 $.ajax({ url: apiUrl, dataType: 'text' }).done(function(response) {
                     clearInterval(requestTimer);
-                    $('#loading').hide(); // Hide loading gif and request time
+                    $('#loading').hide(); // Esconder loading gif e tempo de requisição
                     const endTime = new Date();
-                    const duration = (endTime - startTime) / 1000; // in seconds
+                    const duration = (endTime - startTime) / 1000; // em segundos
                     
                     const allRows = response.split('\n');
                     const headers = allRows[0].split(',').map(header => header.trim());
-                    const resultCount = allRows.length - 2; // Subtract header and empty last row
+                    const resultCount = Math.max(allRows.length - 2, 0); // Garantir que seja >= 0
                     
                     let tableHtml = `<h3>Resultados (${resultCount} encontrados, tempo de consulta: ${duration.toFixed(2)} segundos)</h3>`;
                     tableHtml += '<table id="resultsTable" class="table table-striped"><thead><tr>';
@@ -264,7 +274,7 @@
                     
                     $('#results').html(tableHtml);
                     
-                    // Initialize DataTable with modern features
+                    // Inicializar DataTable com funcionalidades modernas
                     $('#resultsTable').DataTable({
                         responsive: true,
                         language: {
@@ -287,7 +297,7 @@
                         ]
                     });
                     
-                    // Enable download button and set its functionality
+                    // Habilitar botão de download e definir sua funcionalidade
                     $('#downloadBtn').prop('disabled', false).off('click').on('click', function() {
                         const blob = new Blob([response], { type: 'text/csv;charset=utf-8;' });
                         const link = document.createElement("a");
@@ -303,16 +313,41 @@
                     });
                 }).fail(function(jqXHR, textStatus, errorThrown) {
                     clearInterval(requestTimer);
-                    $('#loading').hide(); // Hide loading gif and request time
+                    $('#loading').hide(); // Esconder loading gif e tempo de requisição
                     console.error('Erro ao buscar dados:', textStatus, errorThrown);
                     $('#results').text('Erro ao buscar dados. Por favor, tente novamente.');
                 });
             });
 
+            // Novo manipulador para o botão de limpar seleções
+            $('#limparBtn').click(function() {
+                // Resetar o formulário
+                $('#searchForm')[0].reset();
+                // Resetar os Select2
+                $('select').val(null).trigger('change');
+                // Esconder resultados e links anteriores
+                $('#results').empty();
+                $('#apiLink').empty();
+                $('#downloadBtn').prop('disabled', true);
+                // Esconder quaisquer alertas
+                $('#apiAlert').hide();
+                // Esconder textos de ajuda se estiverem visíveis
+                if ($('#helpToggle').is(':checked')) {
+                    $('.help-text').hide();
+                    $('#helpToggle').prop('checked', false);
+                }
+            });
+
             function updateRequestTime() {
                 const currentTime = new Date();
-                const elapsedTime = (currentTime - startTime) / 1000; // in seconds
+                const elapsedTime = (currentTime - startTime) / 1000; // em segundos
                 $('#requestTime').text(`Tempo de requisição: ${elapsedTime.toFixed(1)} segundos`);
+
+                // Verificar se o tempo ultrapassou 10 segundos e mostrar alerta se necessário
+                if (elapsedTime > 10 && !alertaMostrado) {
+                    $('#apiAlert').fadeIn();
+                    alertaMostrado = true;
+                }
             }
 
             function parseCSVRow(row) {
