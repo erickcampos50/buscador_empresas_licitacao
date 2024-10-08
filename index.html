@@ -50,12 +50,12 @@
 <body>
     <main class="container mt-5">
         <h1 class="mb-4">Buscador de Fornecedores</h1>
-        <p>Esta ferramenta foi elaborada com o intuito de facilitar a busca por cotações para licitações através da consulta de fornecedores previamente cadastrados junto ao governo. A consulta é feita ao banco de dados de empresas do governo federal disponível em <a href="https://compras.dados.gov.br/docs/home.html" target="_blank">https://compras.dados.gov.br/docs/home.html</a>.</p>
+        <p>Esta ferramenta foi elaborada com o intuito de facilitar a busca por cotações para licitações através da consulta de fornecedores previamentese cadastraram para participar de licitações. A consulta é feita ao banco de dados de empresas do governo federal disponível em <a href="https://compras.dados.gov.br/docs/home.html" target="_blank">API de Compras Governamentais</a>.</p>
         <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="helpToggle">
             <label class="form-check-label" for="helpToggle">Exibir ajuda</label>
         </div>
-        <div id="dataLoading">Carregando dados da planilha do Google, por favor aguarde...</div>
+        <div id="dataLoading">Carregando dados, aguarde alguns instantes...</div>
         <form id="searchForm" style="display: none;">
             <div class="mb-3">
                 <label for="linhaFornecimento" class="form-label">Linha de Fornecimento</label>
@@ -118,8 +118,7 @@
         <div id="results" class="mt-4"></div>
         <div id="credits" class="mt-4">
             <h5>Créditos e Informações</h5>
-            <p>Esta ferramenta não possui garantia. Os dados são extraídos da plataforma API de Compras Governamentais (<a href="https://compras.dados.gov.br/docs/home.html" target="_blank">https://compras.dados.gov.br/docs/home.html</a>).</p>
-            <p>Criador: Erick C. Campos (erick.campos@ufjf.br)</p>
+            <p>Esta calculadora foi desenvolvida por Erick C. Campos <a href="mailto:erick.campos@ufjf.br" target="_blank">erick.campos@ufjf.br</a> (mailto:erick.campos@ufjf.br), sendo disponibilizada sem nenhuma garantia. A utilização desta calculadora é de responsabilidade do usuário, e os resultados fornecidos são aproximados, com base nas informações disponíveis nas fontes mencionadas. </p>
         </div>
     </main>
     
@@ -253,7 +252,7 @@
                     tableHtml += '</tr></thead><tbody>';
                     
                     for (let i = 1; i < allRows.length - 1; i++) {
-                        const cells = allRows[i].split(',').map(cell => cell.trim());
+                        const cells = parseCSVRow(allRows[i]);
                         tableHtml += '<tr>';
                         selectedIndexes.forEach(index => {
                             tableHtml += `<td>${cells[index]}</td>`;
@@ -280,7 +279,7 @@
                             }
                         ],
                         order: [[1, 'asc']],
-                        pageLength: 50,
+                        pageLength: 100,
                         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
                         columnDefs: [
                             { responsivePriority: 1, targets: 0 },
@@ -314,6 +313,24 @@
                 const currentTime = new Date();
                 const elapsedTime = (currentTime - startTime) / 1000; // in seconds
                 $('#requestTime').text(`Tempo de requisição: ${elapsedTime.toFixed(1)} segundos`);
+            }
+
+            function parseCSVRow(row) {
+                const result = [];
+                let inQuotes = false;
+                let value = '';
+                for (let char of row) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(value.trim());
+                        value = '';
+                    } else {
+                        value += char;
+                    }
+                }
+                result.push(value.trim());
+                return result;
             }
         });
     </script>
