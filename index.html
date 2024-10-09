@@ -203,66 +203,87 @@
 
             // Carregar os dados localmente
             const sheetUrl = 'base_dados.csv';
+            const fallbackSheetUrl = 'https://docs.google.com/spreadsheets/d/1BaVTq3_Cb0Qih5K-FyqNQqmfuarVfq-Jj86hvYnvO2Q/export?format=csv&gid=25459907';
             const linhaFornecimentoMap = {};
 
-            fetch(sheetUrl)
-                .then(response => response.text())
-                .then(data => {
-                    const lines = data.split('\n');
-                    let linhaFornecimentoOptions = '';
-                    let municipioOptions = '';
-                    for (let i = 1; i < lines.length; i++) {
-                        const line = lines[i].trim();
-                        if (!line) continue; // Pular linhas vazias
-
-                        // Usar parseCSVRow para lidar com campos com ou sem aspas
-                        const cells = parseCSVRow(line);
-                        const linhaCode = cells[0];
-                        const municipioData = cells[1];
-
-                        // Processar Linha de Fornecimento
-                        if (linhaCode) {
-                            const linhaPrefix = 'Linha de Fornecimento ';
-                            const colonIndex = linhaCode.indexOf(':');
-                            if (linhaCode.startsWith(linhaPrefix) && colonIndex > -1) {
-                                const idStr = linhaCode.substring(linhaPrefix.length, colonIndex).trim();
-                                const name = linhaCode.substring(colonIndex + 1).trim();
-                                if (idStr && name && !linhaFornecimentoMap[idStr]) {
-                                    linhaFornecimentoMap[idStr] = name;
-                                    linhaFornecimentoOptions += `<option value="${idStr}">${name}</option>`;
-                                }
-                            }
+            function loadData(url) {
+                return fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Erro ao carregar o arquivo CSV');
                         }
+                        return response.text();
+                    });
+            }
 
-                        // Processar Município
-                        if (municipioData) {
-                            const municipioPrefix = 'Município ';
-                            const colonIndex = municipioData.indexOf(':');
-                            if (municipioData.startsWith(municipioPrefix) && colonIndex > -1) {
-                                const idStr = municipioData.substring(municipioPrefix.length, colonIndex).trim();
-                                const name = municipioData.substring(colonIndex + 1).trim();
-                                if (idStr && name) {
-                                    municipioOptions += `<option value="${idStr}">${idStr} - ${name}</option>`;
-                                }
+            loadData(sheetUrl)
+                .then(data => {
+                    processCSVData(data);
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar base_dados.csv:', error);
+                    loadData(fallbackSheetUrl)
+                        .then(data => {
+                            processCSVData(data);
+                        })
+                        .catch(error => {
+                            console.error('Erro ao carregar dados do Google Drive:', error);
+                            alert('Erro ao carregar dados iniciais. Por favor, recarregue a página.');
+                        });
+                });
+
+            function processCSVData(data) {
+                const lines = data.split('\n');
+                let linhaFornecimentoOptions = '';
+                let municipioOptions = '';
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue; // Pular linhas vazias
+
+                    // Usar parseCSVRow para lidar com campos com ou sem aspas
+                    const cells = parseCSVRow(line);
+                    const linhaCode = cells[0];
+                    const municipioData = cells[1];
+
+                    // Processar Linha de Fornecimento
+                    if (linhaCode) {
+                        const linhaPrefix = 'Linha de Fornecimento ';
+                        const colonIndex = linhaCode.indexOf(':');
+                        if (linhaCode.startsWith(linhaPrefix) && colonIndex > -1) {
+                            const idStr = linhaCode.substring(linhaPrefix.length, colonIndex).trim();
+                            const name = linhaCode.substring(colonIndex + 1).trim();
+                            if (idStr && name && !linhaFornecimentoMap[idStr]) {
+                                linhaFornecimentoMap[idStr] = name;
+                                linhaFornecimentoOptions += `<option value="${idStr}">${name}</option>`;
                             }
                         }
                     }
 
-                    // Inserir opções no select de Linha de Fornecimento
-                    $('#linhaFornecimento').html(linhaFornecimentoOptions);
-                    // Inserir opções no select de Município, mantendo a opção de seleção inicial
-                    $('#municipio').append(municipioOptions);
+                    // Processar Município
+                    if (municipioData) {
+                        const municipioPrefix = 'Município ';
+                        const colonIndex = municipioData.indexOf(':');
+                        if (municipioData.startsWith(municipioPrefix) && colonIndex > -1) {
+                            const idStr = municipioData.substring(municipioPrefix.length, colonIndex).trim();
+                            const name = municipioData.substring(colonIndex + 1).trim();
+                            if (idStr && name) {
+                                municipioOptions += `<option value="${idStr}">${idStr} - ${name}</option>`;
+                            }
+                        }
+                    }
+                }
 
-                    // Inicializar Select2 após a inserção das opções
-                    initializeSelect2();
+                // Inserir opções no select de Linha de Fornecimento
+                $('#linhaFornecimento').html(linhaFornecimentoOptions);
+                // Inserir opções no select de Município, mantendo a opção de seleção inicial
+                $('#municipio').append(municipioOptions);
 
-                    $('#dataLoading').hide();
-                    $('#searchForm').show();
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar dados:', error);
-                    alert('Erro ao carregar dados iniciais. Por favor, recarregue a página.');
-                });
+                // Inicializar Select2 após a inserção das opções
+                initializeSelect2();
+
+                $('#dataLoading').hide();
+                $('#searchForm').show();
+            }
 
             let requestTimer;
             let startTime;
