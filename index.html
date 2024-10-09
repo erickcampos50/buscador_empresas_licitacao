@@ -55,7 +55,7 @@
 <body>
     <main class="container mt-5">
         <h1 class="mb-4">Buscador de Fornecedores</h1>
-        <p>Esta ferramenta foi elaborada com o intuito de facilitar a busca por cotações para licitações através da consulta de fornecedores previamentese cadastraram para participar de licitações. A consulta é feita ao banco de dados de empresas do governo federal disponível em <a href="https://compras.dados.gov.br/docs/home.html" target="_blank">API de Compras Governamentais</a>.</p>
+        <p>Esta ferramenta foi elaborada com o intuito de facilitar a busca por cotações para licitações através da consulta de fornecedores que previamente se cadastraram para participar de licitações. A consulta é feita ao banco de dados de empresas do governo federal disponível em <a href="https://compras.dados.gov.br/docs/home.html" target="_blank">API de Compras Governamentais</a>.</p>
         <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="helpToggle">
             <label class="form-check-label" for="helpToggle">Exibir ajuda</label>
@@ -64,15 +64,14 @@
         <form id="searchForm" style="display: none;">
             <div class="mb-3">
                 <label for="linhaFornecimento" class="form-label">Linha de Fornecimento</label>
-                <select class="form-select" id="linhaFornecimento">
-                    <option value="">Selecione uma linha de fornecimento</option>
+                <select class="form-select" id="linhaFornecimento" multiple>
+                    <!-- Opções carregadas dinamicamente -->
                 </select>
-                <div class="help-text">Selecione a linha de fornecimento desejada. Você pode deixar em branco para buscar em todas as linhas.</div>
+                <div class="help-text">Selecione as linhas de fornecimento desejadas. Você pode deixar em branco para buscar em todas as linhas.</div>
             </div>
             <div class="mb-3">
                 <label for="uf" class="form-label">UF</label>
-                <select class="form-select" id="uf">
-                    <option value="">Selecione um estado</option>
+                <select class="form-select" id="uf" multiple>
                     <option value="AC">Acre</option>
                     <option value="AL">Alagoas</option>
                     <option value="AP">Amapá</option>
@@ -101,18 +100,18 @@
                     <option value="SE">Sergipe</option>
                     <option value="TO">Tocantins</option>
                 </select>
-                <div class="help-text">Escolha o estado desejado. Deixe em branco para buscar em todos os estados.</div>
+                <div class="help-text">Escolha os estados desejados. Deixe em branco para buscar em todos os estados.</div>
             </div>
             <div class="mb-3">
                 <label for="municipio" class="form-label">Município</label>
-                <select class="form-select" id="municipio">
+                <select class="form-select" id="municipio" multiple>
                     <option value="">Selecione um município</option>
                 </select>
-                <div class="help-text">Selecione o município desejado. Deixe em branco para buscar em todos os municípios.</div>
+                <div class="help-text">Selecione os municípios desejados. Deixe em branco para buscar em todos os municípios.</div>
             </div>
             <div class="d-flex">
                 <button type="submit" class="btn btn-primary me-2">Buscar</button>
-                <button type="button" id="limparBtn" class="btn btn-secondary me-2">Limpar Seleções</button> <!-- Novo botão de limpar -->
+                <button type="button" id="limparBtn" class="btn btn-secondary me-2">Limpar Seleções</button>
                 <button type="button" id="downloadBtn" class="btn btn-success btn-lg" disabled>Download CSV Completo</button>
             </div>
         </form>
@@ -128,10 +127,10 @@
         <div id="results" class="mt-4"></div>
         <div id="credits" class="mt-4">
             <h5>Créditos e Informações</h5>
-            <p>Esta calculadora foi desenvolvida por Erick C. Campos <a href="mailto:erick.campos@ufjf.br" target="_blank">erick.campos@ufjf.br</a> (mailto:erick.campos@ufjf.br), sendo disponibilizada sem nenhuma garantia. A utilização desta calculadora é de responsabilidade do usuário, e os resultados fornecidos são aproximados, com base nas informações disponíveis nas fontes mencionadas. </p>
+            <p>Esta calculadora foi desenvolvida por Erick C. Campos <a href="mailto:erick.campos@ufjf.br" target="_blank">erick.campos@ufjf.br</a>, sendo disponibilizada sem nenhuma garantia. A utilização desta calculadora é de responsabilidade do usuário, e os resultados fornecidos são aproximados, com base nas informações disponíveis nas fontes mencionadas.</p>
         </div>
     </main>
-    
+
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -141,74 +140,129 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         $(document).ready(function() {
+            // Mover as funções parseCSVRow e escapeCSVField para o topo para que possam ser usadas em todo o código
+            function parseCSVRow(row) {
+                const result = [];
+                let inQuotes = false;
+                let value = '';
+                for (let i = 0; i < row.length; i++) {
+                    const char = row[i];
+                    if (char === '"') {
+                        if (inQuotes && row[i + 1] === '"') {
+                            value += '"';
+                            i++; // Pular a próxima aspa
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(value);
+                        value = '';
+                    } else {
+                        value += char;
+                    }
+                }
+                result.push(value);
+                return result;
+            }
+
+            function escapeCSVField(value) {
+                if (value === null || value === undefined) {
+                    return '';
+                }
+                value = value.toString();
+                if (value.includes('"')) {
+                    value = value.replace(/"/g, '""');
+                }
+                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                    value = `"${value}"`;
+                }
+                return value;
+            }
+
             $('#helpToggle').change(function() {
                 $('.help-text').toggle(this.checked);
             });
 
-            // Initialize Select2 for all select elements
-            $('select').select2({
-                theme: 'bootstrap-5',
-                width: '100%',
-                placeholder: $(this).data('placeholder'),
-                allowClear: true
-            });
+            // Inicializar Select2 após a inserção das opções
+            function initializeSelect2() {
+                $('#linhaFornecimento, #uf, #municipio').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: function() {
+                        if (this.id === 'linhaFornecimento') {
+                            return 'Selecione uma ou mais linhas de fornecimento';
+                        } else if (this.id === 'uf') {
+                            return 'Selecione um ou mais estados';
+                        } else if (this.id === 'municipio') {
+                            return 'Selecione um ou mais municípios';
+                        }
+                    },
+                    allowClear: true
+                });
+            }
 
-            // Load data from Google Sheets without blocking the application
-            const sheetId = '1BaVTq3_Cb0Qih5K-FyqNQqmfuarVfq-Jj86hvYnvO2Q';
-            const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=25459907`;
+            // Carregar os dados localmente
+            const sheetUrl = 'base_dados.csv';
+            const linhaFornecimentoMap = {};
 
             fetch(sheetUrl)
                 .then(response => response.text())
                 .then(data => {
                     const lines = data.split('\n');
-                    const linhasFornecimento = [];
-                    const municipios = [];
-                    lines.slice(1).forEach(line => {
-                        const [linhaCode, municipioData] = line.split(',');
+                    let linhaFornecimentoOptions = '';
+                    let municipioOptions = '';
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue; // Pular linhas vazias
+
+                        // Usar parseCSVRow para lidar com campos com ou sem aspas
+                        const cells = parseCSVRow(line);
+                        const linhaCode = cells[0];
+                        const municipioData = cells[1];
+
+                        // Processar Linha de Fornecimento
                         if (linhaCode) {
-                            const match = linhaCode.match(/Linha de Fornecimento (\d+):\s*(.*)/);
-                            if (match) {
-                                const id = match[1];
-                                const text = match[2];
-                                linhasFornecimento.push({
-                                    id: id.trim(),
-                                    text: text.trim()
-                                });
+                            const linhaPrefix = 'Linha de Fornecimento ';
+                            const colonIndex = linhaCode.indexOf(':');
+                            if (linhaCode.startsWith(linhaPrefix) && colonIndex > -1) {
+                                const idStr = linhaCode.substring(linhaPrefix.length, colonIndex).trim();
+                                const name = linhaCode.substring(colonIndex + 1).trim();
+                                if (idStr && name && !linhaFornecimentoMap[idStr]) {
+                                    linhaFornecimentoMap[idStr] = name;
+                                    linhaFornecimentoOptions += `<option value="${idStr}">${name}</option>`;
+                                }
                             }
                         }
+
+                        // Processar Município
                         if (municipioData) {
-                            const municipioMatch = municipioData.match(/Município (\d+):\s*(.*)/);
-                            if (municipioMatch) {
-                                const municipioId = municipioMatch[1];
-                                const municipioName = municipioMatch[2];
-                                municipios.push({
-                                    id: municipioId.trim(),
-                                    text: `${municipioId.trim()} - ${municipioName.trim()}`
-                                });
+                            const municipioPrefix = 'Município ';
+                            const colonIndex = municipioData.indexOf(':');
+                            if (municipioData.startsWith(municipioPrefix) && colonIndex > -1) {
+                                const idStr = municipioData.substring(municipioPrefix.length, colonIndex).trim();
+                                const name = municipioData.substring(colonIndex + 1).trim();
+                                if (idStr && name) {
+                                    municipioOptions += `<option value="${idStr}">${idStr} - ${name}</option>`;
+                                }
                             }
                         }
-                    });
-                    populateSelect('#linhaFornecimento', linhasFornecimento);
-                    populateSelect('#municipio', municipios);
+                    }
+
+                    // Inserir opções no select de Linha de Fornecimento
+                    $('#linhaFornecimento').html(linhaFornecimentoOptions);
+                    // Inserir opções no select de Município, mantendo a opção de seleção inicial
+                    $('#municipio').append(municipioOptions);
+
+                    // Inicializar Select2 após a inserção das opções
+                    initializeSelect2();
+
                     $('#dataLoading').hide();
                     $('#searchForm').show();
                 })
                 .catch(error => {
-                    console.error('Erro ao carregar dados do Google Sheets:', error);
+                    console.error('Erro ao carregar dados:', error);
                     alert('Erro ao carregar dados iniciais. Por favor, recarregue a página.');
                 });
-
-            function populateSelect(selector, options) {
-                const select = $(selector);
-                select.find('option:gt(0)').remove();
-                options.forEach(option => {
-                    select.append($('<option>', {
-                        value: option.id,
-                        text: option.text
-                    }));
-                });
-                select.trigger('change'); // Update Select2
-            }
 
             let requestTimer;
             let startTime;
@@ -216,110 +270,250 @@
 
             $('#searchForm').submit(function(e) {
                 e.preventDefault();
-                
-                const linhaFornecimento = $('#linhaFornecimento').val();
-                const uf = $('#uf').val();
-                const municipio = $('#municipio').val();
-                
-                let apiUrl = 'https://compras.dados.gov.br/fornecedores/v1/fornecedores.csv?';
-                
-                if (linhaFornecimento) apiUrl += `id_linha_fornecimento=${linhaFornecimento}&`;
-                if (uf) apiUrl += `uf=${uf}&`;
-                if (municipio) apiUrl += `id_municipio=${municipio}&`;
-                
-                // Remove trailing '&' se presente
-                apiUrl = apiUrl.endsWith('&') ? apiUrl.slice(0, -1) : apiUrl;
-                
-                $('#apiLink').html(`<strong>Link da consulta:</strong> <a href="${apiUrl}" target="_blank">${apiUrl}</a>`);
-                
-                // Mostrar loading gif e iniciar timer
+
+                // Coletar valores selecionados como arrays
+                const linhaFornecimento = $('#linhaFornecimento').val() || [];
+                const ufs = $('#uf').val() || [];
+                const municipios = $('#municipio').val() || [];
+
+                // Substituir arrays vazios por arrays contendo null (para indicar que não foram selecionados)
+                const linhas = linhaFornecimento.length > 0 ? linhaFornecimento : [null];
+                const estados = ufs.length > 0 ? ufs : [null];
+                const munic = municipios.length > 0 ? municipios : [null];
+
+                // Gerar todas as combinações possíveis
+                const combinations = cartesianProduct([linhas, estados, munic]);
+
+                // Construir URLs para cada combinação
+                const apiUrls = combinations.map(comb => {
+                    const [linha, uf, municipio] = comb;
+                    let apiUrl = 'https://compras.dados.gov.br/fornecedores/v1/fornecedores.csv?';
+                    if (linha) apiUrl += `id_linha_fornecimento=${linha}&`;
+                    if (uf) apiUrl += `uf=${uf}&`;
+                    if (municipio) apiUrl += `id_municipio=${municipio}&`;
+                    apiUrl = apiUrl.endsWith('&') ? apiUrl.slice(0, -1) : apiUrl;
+                    return {
+                        url: apiUrl,
+                        linhaFornecimento: linha || 'Todas',
+                        uf: uf || 'Todos',
+                        municipio: municipio || 'Todos'
+                    };
+                });
+
+                // Remover URLs duplicadas
+                const uniqueApiUrls = [...new Map(apiUrls.map(item => [item.url, item])).values()];
+
+                // Limitar o número de requisições para evitar sobrecarregar a API
+                const MAX_REQUESTS = 50; // Defina conforme necessário
+                if (uniqueApiUrls.length > MAX_REQUESTS) {
+                    alert(`Você está tentando fazer ${uniqueApiUrls.length} requisições. Por favor, selecione menos opções para evitar sobrecarregar a API.`);
+                    return;
+                }
+
+                // Mostrar links das consultas
+                let apiLinksHtml = '<strong>Links da consulta:</strong><br>';
+                uniqueApiUrls.forEach((apiObj, index) => {
+                    const linhaNome = linhaFornecimentoMap[apiObj.linhaFornecimento] || 'Todas';
+                    const ufNome = apiObj.uf !== 'Todos' ? apiObj.uf : 'Todos';
+                    const municipioNome = apiObj.municipio !== 'Todos' ? apiObj.municipio : 'Todos';
+                    apiLinksHtml += `<strong>Consulta ${index + 1}:</strong> Linha de Fornecimento: ${linhaNome}, UF: ${ufNome}, Município: ${municipioNome}: <a href="${apiObj.url}" target="_blank">${apiObj.url}</a><br>`;
+                });
+                $('#apiLink').html(apiLinksHtml);
+
+                // Mostrar loading e iniciar timer
                 $('#loading').show();
-                $('#apiAlert').hide(); // Esconder alerta caso esteja visível de uma consulta anterior
-                alertaMostrado = false; // Resetar flag do alerta
+                $('#apiAlert').hide();
+                alertaMostrado = false;
                 startTime = new Date();
                 requestTimer = setInterval(updateRequestTime, 100);
-                
-                $.ajax({ url: apiUrl, dataType: 'text' }).done(function(response) {
-                    clearInterval(requestTimer);
-                    $('#loading').hide(); // Esconder loading gif e tempo de requisição
-                    const endTime = new Date();
-                    const duration = (endTime - startTime) / 1000; // em segundos
-                    
-                    const allRows = response.split('\n');
-                    const headers = allRows[0].split(',').map(header => header.trim());
-                    const resultCount = Math.max(allRows.length - 2, 0); // Garantir que seja >= 0
-                    
-                    let tableHtml = `<h3>Resultados (${resultCount} encontrados, tempo de consulta: ${duration.toFixed(2)} segundos)</h3>`;
-                    tableHtml += '<table id="resultsTable" class="table table-striped"><thead><tr>';
-                    const selectedHeaders = ['CNPJ', 'Nome', 'Ativo', 'Município', 'Natureza Jurídica', 'Habilitado a Licitar', 'CNAE'];
-                    const selectedIndexes = [];
-                    headers.forEach((header, index) => {
-                        if (selectedHeaders.includes(header)) {
-                            tableHtml += `<th>${header === 'CNAE' ? 'CNAE principal' : header}</th>`;
-                            selectedIndexes.push(index);
-                        }
-                    });
-                    tableHtml += '</tr></thead><tbody>';
-                    
-                    for (let i = 1; i < allRows.length - 1; i++) {
-                        const cells = parseCSVRow(allRows[i]);
-                        tableHtml += '<tr>';
-                        selectedIndexes.forEach(index => {
-                            tableHtml += `<td>${cells[index]}</td>`;
+
+                const requests = uniqueApiUrls.map(apiObj => {
+                    const url = apiObj.url;
+                    return $.ajax({ url: url, dataType: 'text' })
+                        .then(response => {
+                            return { data: response, params: apiObj };
+                        })
+                        .catch(error => {
+                            console.error('Erro ao buscar dados:', error);
+                            return null;
                         });
-                        tableHtml += '</tr>';
-                    }
-                    
-                    tableHtml += '</tbody></table>';
-                    
-                    $('#results').html(tableHtml);
-                    
-                    // Inicializar DataTable com funcionalidades modernas
-                    $('#resultsTable').DataTable({
-                        responsive: true,
-                        language: {
-                            url:  '//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json'
-                        },
-                        dom: 'Bfrtip',
-                        buttons: [
-                            'copy', 'csv', 'excel', 'pdf', 'print',
-                            {
-                                extend: 'colvis',
-                                text: 'Exibir/Ocultar Colunas'
-                            }
-                        ],
-                        order: [[1, 'asc']],
-                        pageLength: 100,
-                        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
-                        columnDefs: [
-                            { responsivePriority: 1, targets: 0 },
-                            { responsivePriority: 2, targets: -1 }
-                        ]
-                    });
-                    
-                    // Habilitar botão de download e definir sua funcionalidade
-                    $('#downloadBtn').prop('disabled', false).off('click').on('click', function() {
-                        const blob = new Blob([response], { type: 'text/csv;charset=utf-8;' });
-                        const link = document.createElement("a");
-                        if (link.download !== undefined) {
-                            const url = URL.createObjectURL(blob);
-                            link.setAttribute("href", url);
-                            link.setAttribute("download", "fornecedores_completo.csv");
-                            link.style.visibility = 'hidden';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                        }
-                    });
-                }).fail(function(jqXHR, textStatus, errorThrown) {
+                });
+
+                Promise.all(requests).then(responses => {
                     clearInterval(requestTimer);
-                    $('#loading').hide(); // Esconder loading gif e tempo de requisição
-                    console.error('Erro ao buscar dados:', textStatus, errorThrown);
+                    $('#loading').hide();
+
+                    // Array para armazenar combinações que não retornaram dados
+                    let noDataCombinations = [];
+
+                    responses = responses.filter(response => response !== null);
+
+                    if (responses.length === 0) {
+                        $('#results').text('Erro ao buscar dados. Por favor, tente novamente.');
+                        return;
+                    }
+
+                    let allRows = [];
+                    let headers = [];
+                    let totalResultCount = 0;
+                    let duration = (new Date() - startTime) / 1000;
+
+                    let seenCNPJs = new Set();
+
+                    responses.forEach(responseObj => {
+                        const response = responseObj.data;
+                        const params = responseObj.params;
+                        const linhaFornecimentoValue = params.linhaFornecimento;
+                        const linhaFornecimentoName = linhaFornecimentoMap[linhaFornecimentoValue] || 'Todas';
+                        const rows = response.split('\n');
+                        if (rows.length < 2 || (rows.length === 2 && rows[1].trim() === '')) {
+                            // Combinação não retornou dados
+                            noDataCombinations.push(params);
+                            return;
+                        }
+                        if (headers.length === 0) {
+                            headers = parseCSVRow(rows[0]);
+                            headers.unshift('Linha de Fornecimento'); // Adicionar a coluna ao CSV
+                        }
+                        const dataHeaders = headers.slice(1); // Remove 'Linha de Fornecimento' do headers
+                        const cnpjIndex = dataHeaders.indexOf('CNPJ');
+                        const dataRows = rows.slice(1);
+                        dataRows.forEach(row => {
+                            if (row.trim() === '') return; // Pular linhas vazias
+                            const cells = parseCSVRow(row);
+                            if (cnpjIndex === -1 || !cells[cnpjIndex]) return; // Pular se CNPJ não estiver presente
+                            const cnpj = cells[cnpjIndex];
+                            if (!seenCNPJs.has(cnpj)) {
+                                seenCNPJs.add(cnpj);
+                                allRows.push({ row: row, linhaFornecimento: linhaFornecimentoName });
+                            }
+                        });
+                    });
+
+                    totalResultCount = allRows.length;
+
+                    if (totalResultCount === 0) {
+                        $('#results').html(`<p>Nenhum resultado encontrado para as combinações selecionadas.</p>`);
+                    } else {
+                        let tableHtml = `<h3>Resultados (${totalResultCount} encontrados, tempo de consulta: ${duration.toFixed(2)} segundos)</h3>`;
+                        tableHtml += '<table id="resultsTable" class="table table-striped"><thead><tr>';
+                        tableHtml += '<th>Linha de Fornecimento</th>';
+
+                        const selectedHeaders = ['CNPJ', 'Nome', 'Ativo', 'Município', 'Natureza Jurídica', 'Habilitado a Licitar', 'CNAE'];
+                        const selectedIndexes = [];
+                        headers.forEach((header, index) => {
+                            if (selectedHeaders.includes(header)) {
+                                tableHtml += `<th>${header === 'CNAE' ? 'CNAE principal' : header}</th>`;
+                                selectedIndexes.push(index - 1); // Ajustar o índice devido à nova coluna
+                            }
+                        });
+                        tableHtml += '</tr></thead><tbody>';
+
+                        for (let i = 0; i < allRows.length; i++) {
+                            const { row, linhaFornecimento } = allRows[i];
+                            const cells = parseCSVRow(row);
+                            tableHtml += '<tr>';
+                            tableHtml += `<td>${linhaFornecimento}</td>`;
+                            selectedIndexes.forEach(index => {
+                                tableHtml += `<td>${cells[index]}</td>`;
+                            });
+                            tableHtml += '</tr>';
+                        }
+
+                        tableHtml += '</tbody></table>';
+
+                        $('#results').html(tableHtml);
+
+                        $('#resultsTable').DataTable({
+                            responsive: true,
+                            language: {
+                                url:  '//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json'
+                            },
+                            dom: 'Bfrtip',
+                            buttons: [
+                                'copy', 'csv', 'excel', 'pdf', 'print',
+                                {
+                                    extend: 'colvis',
+                                    text: 'Exibir/Ocultar Colunas'
+                                }
+                            ],
+                            order: [[1, 'asc']],
+                            pageLength: 100,
+                            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+                            columnDefs: [
+                                { responsivePriority: 1, targets: 0 },
+                                { responsivePriority: 2, targets: -1 }
+                            ]
+                        });
+
+                        // Preparar dados para download
+                        let combinedCSV = headers.map(escapeCSVField).join(',') + '\n';
+                        allRows.forEach(rowObj => {
+                            const cells = parseCSVRow(rowObj.row);
+                            const rowArray = [rowObj.linhaFornecimento, ...cells];
+                            const escapedRow = rowArray.map(escapeCSVField).join(',');
+                            combinedCSV += escapedRow + '\n';
+                        });
+
+                        $('#downloadBtn').prop('disabled', false).off('click').on('click', function() {
+                            const blob = new Blob([combinedCSV], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement("a");
+                            if (link.download !== undefined) {
+                                const url = URL.createObjectURL(blob);
+                                link.setAttribute("href", url);
+                                link.setAttribute("download", "fornecedores_completo.csv");
+                                link.style.visibility = 'hidden';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }
+                        });
+                    }
+
+                    if (noDataCombinations.length > 0) {
+                        let noDataMessage = '<p>As seguintes combinações não retornaram nenhum dado:</p><ul>';
+                        noDataCombinations.forEach(comb => {
+                            const linhaNome = linhaFornecimentoMap[comb.linhaFornecimento] || 'Todas';
+                            const ufNome = comb.uf !== 'Todos' ? comb.uf : 'Todos';
+                            const municipioNome = comb.municipio !== 'Todos' ? comb.municipio : 'Todos';
+                            noDataMessage += `<li>Linha de Fornecimento: ${linhaNome}, UF: ${ufNome}, Município: ${municipioNome}</li>`;
+                        });
+                        noDataMessage += '</ul>';
+                        $('#results').append(noDataMessage);
+                    }
+
+                }).catch(() => {
+                    clearInterval(requestTimer);
+                    $('#loading').hide();
                     $('#results').text('Erro ao buscar dados. Por favor, tente novamente.');
                 });
             });
 
-            // Novo manipulador para o botão de limpar seleções
+            // Função para atualizar o tempo de requisição
+            function updateRequestTime() {
+                const currentTime = new Date();
+                const elapsedTime = (currentTime - startTime) / 1000; // em segundos
+                $('#requestTime').text(`Tempo de requisição: ${elapsedTime.toFixed(1)} segundos`);
+
+                // Verificar se o tempo ultrapassou 10 segundos e mostrar alerta se necessário
+                if (elapsedTime > 10 && !alertaMostrado) {
+                    $('#apiAlert').fadeIn();
+                    alertaMostrado = true;
+                }
+            }
+
+            // Função para calcular o produto cartesiano
+            function cartesianProduct(arrays) {
+                return arrays.reduce(function(a, b) {
+                    return a.flatMap(function(d) {
+                        return b.map(function(e) {
+                            return d.concat([e]);
+                        });
+                    });
+                }, [[]]);
+            }
+
+            // Manipulador para o botão de limpar seleções
             $('#limparBtn').click(function() {
                 // Resetar o formulário
                 $('#searchForm')[0].reset();
@@ -338,35 +532,6 @@
                 }
             });
 
-            function updateRequestTime() {
-                const currentTime = new Date();
-                const elapsedTime = (currentTime - startTime) / 1000; // em segundos
-                $('#requestTime').text(`Tempo de requisição: ${elapsedTime.toFixed(1)} segundos`);
-
-                // Verificar se o tempo ultrapassou 10 segundos e mostrar alerta se necessário
-                if (elapsedTime > 10 && !alertaMostrado) {
-                    $('#apiAlert').fadeIn();
-                    alertaMostrado = true;
-                }
-            }
-
-            function parseCSVRow(row) {
-                const result = [];
-                let inQuotes = false;
-                let value = '';
-                for (let char of row) {
-                    if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                        result.push(value.trim());
-                        value = '';
-                    } else {
-                        value += char;
-                    }
-                }
-                result.push(value.trim());
-                return result;
-            }
         });
     </script>
 </body>
